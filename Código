@@ -1,0 +1,358 @@
+/*
+ * Programa: RFID - Controle de acesso / cancela (Revisado com Relé e Letreiro)
+ * Autor: Arduino e Cia (Revisado por Gemini)
+ *
+ * Funcionalidades:
+ * - Leitura RFID (MFRC522)
+ * - Controle de cancela (Servo)
+ * - Acionamento de Relé (Ventoinha 12V) no Acesso Liberado
+ * - Feedback sonoro diferenciado (Buzzer Ativo)
+ * - Exibição de status (LCD I2C)
+ * - Registro de data/hora do acesso (RTC DS1302)
+ * - NOVO: Display ocioso alterna (letreiro) entre duas telas (Projeto e Relógio)
+ */
+
+#include <SPI.h>
+#include <MFRC522.h>
+#include <Servo.h>
+// Bibliotecas de Comunicação e Periféricos
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <RtcDS1302.h>
+// Necessário para o objeto ThreeWire
+#include <ThreeWire.h>
+
+// --- MFRC522 ---
+#define SS_PIN 10
+#define RST_PIN 9
+MFRC522 mfrc522(SS_PIN, RST_PIN);
+
+// --- Configuração do Buzzer, LEDs e Relé ---
+#define BUZZER_PIN A0  // Buzzer Ativo (Pino A0)
+#define RELE_PIN A1    // Pino de controle do Relé 5V (Ventoinha) - Active HIGH
+
+// --- NOVO: Pinos do LED RGB (HW-479 Cátodo Comum) ---
+#define RGB_R_PIN 6    // Pino VERMELHO do LED RGB (antigo led_negado)
+#define RGB_G_PIN 5    // Pino VERDE do LED RGB (antigo led_liberado)
+#define RGB_B_PIN 2    // Pino AZUL do LED RGB (para estado Ocioso)
+
+// --- REMOVIDO (Substituído por RGB) ---
+// int led_liberado = 5;
+// int led_negado = 6;
+
+// --- Configuração do Servo ---
+Servo microservo9g; // Conectado ao Pino 3
+
+// --- Configuração do RTC DS1302 ---
+#define RTC_RST_PIN 4  // Digital 4 (CE/Reset)
+#define RTC_IO_PIN 7   // Digital 7 (I/O/Data)
+#define RTC_SCLK_PIN 8 // Digital 8 (SCLK/Clock)
+
+// CRIAÇÃO DO OBJETO DE COMUNICAÇÃO ThreeWire (IO, SCLK, CE)
+ThreeWire myWire(RTC_IO_PIN, RTC_SCLK_PIN, RTC_RST_PIN);
+
+// CRIAÇÃO DO OBJETO RTC USANDO O TEMPLATE ThreeWire
+RtcDS1302<ThreeWire> Rtc(myWire);
+
+// --- Configuração do LCD I2C ---
+LiquidCrystal_I2C lcd(0x27, 16, 2); // Endereço 0x27, 16x2
+
+// --- NOVO: Variáveis de Controle do Letreiro Ocioso ---
+unsigned long lastDisplayChange = 0; // Armazena a última vez que o display mudou
+const long displayInterval = 3000;  // Intervalo de 3 segundos (3000 ms) para alternar
+bool showScreenA = true;            // Controla qual tela exibir (A ou B)
+
+
+// --- FUNÇÕES DE FEEDBACK ---
+
+void beepLiberado() {
+  digitalWrite(BUZZER_PIN, HIGH);
+  delay(100);
+  digitalWrite(BUZZER_PIN, LOW);
+}
+
+void beepNegado() {
+  digitalWrite(BUZZER_PIN, HIGH);
+  delay(100);
+  digitalWrite(BUZZER_PIN, LOW);
+  delay(50);
+  digitalWrite(BUZZER_PIN, HIGH);
+  delay(100);
+  digitalWrite(BUZZER_PIN, LOW);
+}
+
+// --- NOVO: Função de Controle do LED RGB ---
+// Define a cor do LED (Cátodo Comum - HIGH para ligar)
+void setRgbColor(bool r, bool g, bool b) {
+  digitalWrite(RGB_R_PIN, r);
+  digitalWrite(RGB_G_PIN, g);
+  digitalWrite(RGB_B_PIN, b);
+}
+
+// --- FUNÇÕES DE DISPLAY ---
+
+// Função para exibir a data/hora do ACESSO LIBERADO
+void displayTime(RtcDateTime t) {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+
+  // Linha 1: Data (DD/MM/AAAA)
+  if (t.Day() < 10) lcd.print("0");
+  lcd.print(t.Day());
+  lcd.print("/");
+  if (t.Month() < 10) lcd.print("0");
+  lcd.print(t.Month());
+  lcd.print("/");
+  lcd.print(t.Year());
+
+  // Linha 2: Hora (HH:MM:SS) e Status
+  lcd.setCursor(0, 1);
+  if (t.Hour() < 10) lcd.print("0");
+  lcd.print(t.Hour());
+  lcd.print(":");
+  if (t.Minute() < 10) lcd.print("0");
+  lcd.print(t.Minute());
+  lcd.print(":");
+  if (t.Second() < 10) lcd.print("0");
+  lcd.print(t.Second());
+
+  lcd.print(" LIBERADO");
+}
+
+// --- NOVAS FUNÇÕES DO LETREIRO OCIOSO ---
+
+// Função para a Tela A (Projeto)
+void displayScreenA() {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  // Texto Abreviado (Original era "PROJETO INTEGRADOR - ENGENHARIA...")
+  lcd.print("PROJ. INTEGRADOR"); 
+  lcd.setCursor(0, 1);
+  // Texto Abreviado (Original era "APROXIME O CARTÃO")
+  lcd.print("APROXIMAR CARTAO");
+}
+
+// Função para a Tela B (Relógio)
+void displayScreenB(RtcDateTime t) {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  
+  // NOVO: Linha 1 (Data Completa) - Ex: "Data: 08/11/2025"
+  lcd.print("Data: ");
+  if (t.Day() < 10) lcd.print("0");
+  lcd.print(t.Day());
+  lcd.print("/");
+  if (t.Month() < 10) lcd.print("0");
+  lcd.print(t.Month());
+  lcd.print("/");
+  lcd.print(t.Year()); // Total 16 caracteres
+
+  // NOVO: Linha 2 (Hora Completa) - Ex: "Hora: 11:56:20"
+  lcd.setCursor(0, 1);
+  lcd.print("Hora: ");
+  if (t.Hour() < 10) lcd.print("0");
+  lcd.print(t.Hour());
+  lcd.print(":");
+  if (t.Minute() < 10) lcd.print("0");
+  lcd.print(t.Minute());
+  lcd.print(":");
+  if (t.Second() < 10) lcd.print("0");
+  lcd.print(t.Second()); // Total 14 caracteres
+}
+
+
+void setup()
+{
+  // --- Inicialização do LCD ---
+  lcd.init();
+  lcd.backlight();
+  
+  // NOVO: Mostra a primeira tela do letreiro na inicialização
+  displayScreenA(); 
+  lastDisplayChange = millis(); // Inicia o timer do letreiro
+
+  // --- Configuração de Pinos ---
+  // pinMode(led_liberado, OUTPUT); // REMOVIDO
+  // pinMode(led_negado, OUTPUT);   // REMOVIDO
+  pinMode(BUZZER_PIN, OUTPUT);
+  pinMode(RELE_PIN, OUTPUT);
+  
+  // NOVO: Configura os pinos RGB
+  pinMode(RGB_R_PIN, OUTPUT);
+  pinMode(RGB_G_PIN, OUTPUT);
+  pinMode(RGB_B_PIN, OUTPUT);
+  
+  // LÓGICA ACTIVE HIGH: Inicia o relé em LOW (Desligado)
+  digitalWrite(RELE_PIN, LOW);
+
+  // NOVO: Define a cor inicial como AZUL (Ocioso)
+  setRgbColor(LOW, LOW, HIGH); 
+
+  // --- Configuração do RTC DS1302 ---
+  Rtc.Begin(); // Inicializa o RTC
+
+  RtcDateTime compiled = RtcDateTime(__DATE__, __TIME__);
+
+  if (!Rtc.IsDateTimeValid())
+  {
+    Serial.println("ERRO: RTC não está funcionando! Ajustando data/hora.");
+    Rtc.SetDateTime(compiled);
+  }
+
+  // --- ATENÇÃO: CONFIGURAÇÃO INICIAL DA HORA ---
+  // Rtc.SetDateTime(RtcDateTime(2025, 11, 7, 11, 45, 0)); 
+
+  // --- Inicialização de Módulos ---
+  microservo9g.attach(3);
+  microservo9g.write(90); // Cancela Fechada
+
+  Serial.begin(9600);
+  SPI.begin();
+  mfrc522.PCD_Init();
+  Serial.println("Sistema Pronto e Aguardando Cartão...");
+}
+
+void loop()
+{
+  // --- ETAPA 1: Verificação de Cartão ---
+  if ( ! mfrc522.PICC_IsNewCardPresent())
+  {
+    // --- ETAPA 2: "Letreiro" Ocioso (NENHUM cartão presente) ---
+    // Esta parte só é executada se não houver cartão
+    
+    unsigned long currentMillis = millis();
+    if (currentMillis - lastDisplayChange >= displayInterval)
+    {
+      // Hora de alternar as telas
+      lastDisplayChange = currentMillis; // Reseta o timer
+
+      if (showScreenA) {
+        // Estava mostrando A, agora mostra B (Controle Acesso + Relógio)
+        RtcDateTime now = Rtc.GetDateTime(); // Pega a hora ATUAL
+        displayScreenB(now);
+        showScreenA = false;
+      } else {
+        // Estava mostrando B, agora mostra A (Proj. Integrador)
+        displayScreenA();
+        showScreenA = true;
+      }
+    }
+
+    // Se não houver cartão, ele executa o letreiro e sai do loop
+    return;
+  }
+
+  // --- ETAPA 3: Cartão Presente, Tenta Ler ---
+  if ( ! mfrc522.PICC_ReadCardSerial())
+  {
+    return; // Falha na leitura, sai
+  }
+
+  // --- ETAPA 4: Processamento do Cartão (O Letreiro para) ---
+  
+  RtcDateTime t = Rtc.GetDateTime();
+
+  // Monta o UID lido
+  String conteudo = "";
+  for (byte i = 0; i < mfrc522.uid.size; i++)
+  {
+    conteudo.concat(String(mfrc522.uid.uidByte[i] < 0x10 ? " 0" : " "));
+    conteudo.concat(String(mfrc522.uid.uidByte[i], HEX));
+  }
+  conteudo.toUpperCase();
+  String uid = conteudo.substring(1); // Remove o espaço inicial
+  Serial.print("UID lido: ");
+  Serial.println(uid);
+
+  // --- Verificacao de Acesso Liberado ---
+  // UIDs Permitidos: 91 42 91 04, 77 E7 7B 05
+  if (uid == "91 42 91 04" || uid == "77 E7 7B 05")
+  {
+    beepLiberado(); // Som de acesso liberado
+
+    // Mostra data/hora do acesso
+    displayTime(t);
+
+    // Log
+    Serial.print("ACESSO LIBERADO: ");
+    Serial.print(t.Year()); Serial.print("/"); Serial.print(t.Month()); Serial.print("/"); Serial.print(t.Day());
+    Serial.print(" ");
+    Serial.print(t.Hour()); Serial.print(":"); Serial.print(t.Minute()); Serial.print(":"); Serial.println(t.Second());
+
+    // --- Ação de Acesso ---
+    microservo9g.write(0);  // Abre a cancela
+    // digitalWrite(led_liberado, HIGH); // REMOVIDO
+    
+    // NOVO: Define a cor para VERDE (Liberado)
+    setRgbColor(LOW, HIGH, LOW); 
+    
+    // LÓGICA ACTIVE HIGH: HIGH = LIGA
+    digitalWrite(RELE_PIN, HIGH);
+    Serial.println("Rele ACIONADO (Ventoinha Ligada)");
+
+    delay(3000); // Tempo com a cancela aberta e ventoinha ligada
+
+    // --- Desliga tudo ---
+    microservo9g.write(90); // Fecha a cancela
+    // digitalWrite(led_liberado, LOW); // REMOVIDO
+    
+    // NOVO: Retorna a cor para AZUL (Ocioso)
+    setRgbColor(LOW, LOW, HIGH); 
+
+    // LÓGICA ACTIVE HIGH: LOW = DESLIGA
+    digitalWrite(RELE_PIN, LOW);
+    Serial.println("Rele DESLIGADO (Ventoinha Desligada)");
+  }
+
+  // --- Verificacao de Acesso Negado ---
+  else 
+  {
+    beepNegado(); // Som de acesso negado
+    
+    // NOVO: Apaga o LED (antes de piscar)
+    setRgbColor(LOW, LOW, LOW); 
+
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("ACESSO NEGADO!");
+
+    bool isKnownDenied = (uid == "E1 1B 09 05");
+
+    if (isKnownDenied) {
+      Serial.println("Cartao Negado Conhecido.");
+      lcd.setCursor(0, 1);
+      lcd.print("UID Bloqueado");
+    } else {
+      Serial.println("Cartao Desconhecido.");
+      lcd.setCursor(0, 1);
+      lcd.print("UID Desconhecido");
+    }
+
+    // Pisca o led vermelho (AGORA COM RGB)
+    for (int i= 0; i<4 ; i++)
+    {
+      // digitalWrite(led_negado, HIGH); // REMOVIDO
+      setRgbColor(HIGH, LOW, LOW); // Vermelho
+      delay(200);
+      // digitalWrite(led_negado, LOW); // REMOVIDO
+      setRgbColor(LOW, LOW, LOW); // Apagado
+      delay(200);
+    }
+    delay(1000); // Tempo para o usuário ler a mensagem de negado
+    
+    // NOVO: Retorna a cor para AZUL (Ocioso)
+    setRgbColor(LOW, LOW, HIGH); 
+  }
+  
+  // --- Fim do processamento ---
+  
+  // Prepara o "letreiro" para recomeçar na Tela A
+  displayScreenA();
+  showScreenA = true;
+  lastDisplayChange = millis();
+
+  // Aguarda um pouco e para o cartão para evitar releitura imediata
+  delay(500); 
+  mfrc522.PICC_HaltA();
+  mfrc522.PCD_StopCrypto1();
+}
