@@ -35,7 +35,7 @@ https://github.com/user-attachments/assets/ff235298-3bad-4db8-8ecf-550c43e4209a
 
 Fotos do protótipo montado
 
-![Prototipo (1)](https://github.com/user-attachments/assets/88823813-e528-41b4-ba45-f721db121fd0)
+![Prototipo (7)](https://github.com/user-attachments/assets/cdfdd05c-8e4e-435d-904c-9174044644f7)
 
 ![Prototipo (1)](https://github.com/user-attachments/assets/772b61c6-946b-4efd-b25d-1e7e9beb2c62)
 
