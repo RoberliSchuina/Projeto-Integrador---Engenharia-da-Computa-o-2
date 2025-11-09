@@ -33,11 +33,14 @@ Vídeo curto do protótipo funcionando
 
 https://github.com/user-attachments/assets/ff235298-3bad-4db8-8ecf-550c43e4209a
 
-Fotos do protótipo montado
+Fotos do Protótipo montado
 
 ![Prototipo (7)](https://github.com/user-attachments/assets/cdfdd05c-8e4e-435d-904c-9174044644f7)
 
 ![Prototipo (1)](https://github.com/user-attachments/assets/772b61c6-946b-4efd-b25d-1e7e9beb2c62)
+
+![Prototipo (3)](https://github.com/user-attachments/assets/26253ca8-76f2-4c67-89ed-f6e3d0ab4e34)
+
 
 ⚙️ Componentes Utilizados:
 
