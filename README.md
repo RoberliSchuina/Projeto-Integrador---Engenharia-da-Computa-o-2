@@ -27,15 +27,14 @@ O protótipo foi desenhado para simular o gerenciamento dos principais circuitos
 
 📸 Protótipo em Ação:
 
-Aqui é um ótimo lugar para colocar um GIF ou vídeo curto do protótipo funcionando.
+Vídeo curto do protótipo funcionando
 
-(Ex: GIF mostrando a aproximação do cartão, o LED ficando verde, o servo girando e a ventoinha (cooler) ligando ao mesmo tempo)
 
-Adicione também fotos do seu protótipo montado.
+Fotos do protótipo montado
 
-Display LCD
+![Prototipo (1)](https://github.com/user-attachments/assets/88823813-e528-41b4-ba45-f721db121fd0)
 
-Placa Montada (Protoboard)
+![Prototipo (1)](https://github.com/user-attachments/assets/772b61c6-946b-4efd-b25d-1e7e9beb2c62)
 
 ⚙️ Componentes Utilizados:
 
@@ -59,7 +58,7 @@ AUTODESK - Tinkercad: https://www.tinkercad.com/things/7d8Z6DJloJX-projeto-integ
 
 1. Bibliotecas Necessárias
 
-Para compilar o código, você precisará das seguintes bibliotecas na sua IDE Arduino:
+Para compilar o código, é necessário as seguintes bibliotecas na IDE do Arduino:
 
 SPI.h (Nativa da IDE)
 MFRC522 (por GitHubCommunity)
@@ -67,8 +66,11 @@ Servo.h (Nativa da IDE)
 Wire.h (Nativa da IDE)
 LiquidCrystal_I2C (por Frank de Brabander)
 RtcDS1302 (por Makuna)
+
+
 2. Configurando o Código
-Ajustar o Relógio (RTC)
+
+2.1 - Ajustar o Relógio (RTC):
 
 Na primeira vez que carregar o código, você deve acertar o relógio:
 
@@ -77,7 +79,7 @@ Na primeira vez que carregar o código, você deve acertar o relógio:
 => Faça o upload do código.
 =>Comente a linha novamente e faça o upload mais uma vez. (Se não fizer isso, o relógio será reiniciado toda vez que o Arduino ligar).
 
-Adicionar seus Cartões (UIDs):
+2.2 - Adicionar seus Cartões (UIDs):
 
 => Abra o Monitor Serial (9600 baud).
 => Aproxime um cartão que você deseja adicionar. O monitor serial mostrará o UID dele (ex: "UID lido: 91 42 91 04").
@@ -99,15 +101,15 @@ Este protótipo é a base para um sistema completo. As próximas etapas com foco
 [ ] Adicionar Sensor de Luminosidade (LDR): Ligar o circuito de lâmpadas (simulado por um 2º Relé ou LED) apenas se a sala estiver escura.
 [ ] Adicionar Sensor de Temperatura (DHT11): Ligar o ar-condicionado (Relé principal) apenas se a temperatura estiver acima de um limite (ex: 23°C).
 [ ] Migrar para ESP32/ESP8266: Adicionar conectividade Wi-Fi para logs na nuvem, dashboard de monitoramento e agendamento de horários de funcionamento via web.
+[ ] Criar uma interface web para inserir a criação dos log de acesso
 
-👨‍💻 Autores
-
+👨‍💻 Autores:
 1. BENÍZIO LÁZARO JÚNIOR;
 2. IAGO CAVALCANTE DEORCE OLIVEIRA;
 3. RAZIEL LUCAS MARCOS FERREIRA;
 4. ROBERLI SCHUINA SILVA, 
 5. VÍTOR LUCAS MIGUEL MASCARENHAS.
 
-📄 Licença
+📄 Licença:
 
 Este projeto está sob a licença MIT - veja o arquivo LICENSE para detalhes.
