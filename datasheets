@@ -1,15 +1,10 @@
 Servo motor (Micro servo 9g) : https://www.friendlywire.com/projects/ne555-servo-safe/SG90-datasheet.pdf
 Display LCD 16x2 com módulo adaptador I2C : https://www.handsontec.com/dataspecs/module/I2C_1602_LCD.pdf
 Protoboard 400: https://www.makerhero.com/produto/protoboard-400-pontos/?utm_source=chatgpt.com
-ou https://agelectronica.lat/pdfs/textos/O/OKY0005.PDF
 Protoboard 830: https://handsontec.com/dataspecs/accessory/Breadboard-Full.pdf
 Arduino UNO: https://docs.arduino.cc/resources/datasheets/A000066-datasheet.pdf
 Módulo RFID-RC522: https://www.handsontec.com/dataspecs/RC522.pdf
-Módulo Buzzer Alarme Ativo com Driver de Nível Alto 5V: https://www.smartkits.com.br/modulo-buzzer-alarme-ativo-com-driver-de-nivel-alto?srsltid=AfmBOor3L0-JeqIZFZJIRmkCe-LPeyfITNc0_FgMPQ0v9K0UwHBPwWto (esse não tem um datasheet específico, apenas sites de vendas com a descrição técnica )
-2 Leds (vermelho e verde)
-Led vermelho: https://cromatek.com.br/datasheet/optoeletronicos/led-pth-5mm-vermelha-encapsulamento-vermelho-difuso-L621.pdf
-Led Verde: https://cromatek.com.br/datasheet/optoeletronicos/led-pth-5mm-verde-puro-encapsulamento-hialino-L221PGHU-14GL.pdf 
-2 Resistores de 220 ohm: https://www.farnell.com/datasheets/3111754.pdf (datasheet geral de resistores da fabricante Carbon)
+Módulo Buzzer Alarme Ativo com Driver de Nível Alto 5V: https://www.smartkits.com.br/modulo-buzzer-alarme-ativo-com-driver-de-nivel-alto?srsltid=AfmBOor3L0-JeqIZFZJIRmkCe-LPeyfITNc0_FgMPQ0v9K0UwHBPwWto
 Jumpers: https://multimedia.3m.com/mws/media/517950O/jumper-wires-for-solderless-breadboards.pdf
 Real Time Clock RTC DS3231: https://www.analog.com/media/en/technical-documentation/data-sheets/ds3231.pdf
 Micro Ventilador Led 12v: https://www.titan-cd.com/en/product/TFD-C8025L12Z_LD1-4.html ou https://www.mymax.ind.br/Marketing/DataSheet/0140-17-Datasheet-Cooler-Spectrum.pdf
