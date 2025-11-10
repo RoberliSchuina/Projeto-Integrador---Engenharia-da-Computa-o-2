@@ -1,4 +1,4 @@
-Projeto Integrador - Engenharia da Computação 2
+### Projeto Integrador - Engenharia da Computação 2
 
 🤖 Controle de Acesso Inteligente com Foco em Eficiência Energética
 
