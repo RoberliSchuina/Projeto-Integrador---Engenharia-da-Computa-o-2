@@ -53,8 +53,8 @@ Fotos do Protótipo montado
 7. 1x Micro Servo 9g (SG90);
 8. 1x Buzzer Ativo;
 9. 2x Protoboards (400 e 830 Pontos) e Jumpers;
-10. 1x Fonte Externa 12V (para a carga);
-11. 1x Fonte Externa 9V (para o arduíno);
+10. 1x Bateria 12V (para a carga);
+11. 1x Bateria 9V (para o arduíno);
 12. 1x Cooler (Ventoinha) 12V (simulando a carga).
 
 🔌 Esquema de Ligação:
@@ -109,6 +109,10 @@ Este protótipo é a base para um sistema completo. As próximas etapas com foco
 [ ] Adicionar Sensor de Temperatura (DHT11): Ligar o ar-condicionado (Relé principal) apenas se a temperatura estiver acima de um limite (ex: 23°C);
 [ ] Migrar para ESP32/ESP8266: Adicionar conectividade Wi-Fi para logs na nuvem, dashboard de monitoramento e agendamento de horários de funcionamento via web;
 [ ] Criar uma interface web para inserir a criação dos log de acesso.
+
+Apresentação do projeto:
+
+https://gamma.app/docs/Controle-de-Acesso-Inteligente-com-Foco-em-Eficiencia-Energetica-62sox0it18n5l07
 
 👨‍💻 Autores:
 1. BENÍZIO LÁZARO JÚNIOR;
