@@ -54,7 +54,7 @@ Fotos do Protótipo montado
 8. 1x Buzzer Ativo;
 9. 2x Protoboards (400 e 830 Pontos) e Jumpers;
 10. 1x Bateria 12V (para a carga);
-11. 1x Bateria 9V (para o arduíno);
+11. 1x Fonte externa (para o arduíno);
 12. 1x Cooler (Ventoinha) 12V (simulando a carga).
 
 🔌 Esquema de Ligação:
