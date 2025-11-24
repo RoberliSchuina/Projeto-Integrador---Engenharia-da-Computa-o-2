@@ -8,16 +8,17 @@
  * - Display (LCD I2C) com Letreiro Ocioso
  * - Display mostra "SALA EM USO"
  * - Relógio (RTC DS1302)
+ * - Botão -> Desliga Relé e Gera RELATÓRIO DE CONSUMO DETALHADO
+ * - Cálculo de consumo baseado em carga real (AC + Lâmpadas)
+ * - Feedback de Display Aprimorado 
  */
 
 #include <SPI.h>
 #include <MFRC522.h>
 #include <Servo.h>
-// Bibliotecas de Comunicação e Periféricos
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 #include <RtcDS1302.h>
-// Necessário para o objeto ThreeWire
 #include <ThreeWire.h>
 
 // --- MFRC522 ---
@@ -25,138 +26,125 @@
 #define RST_PIN 9
 MFRC522 mfrc522(SS_PIN, RST_PIN);
 
-// --- Configuração do Buzzer, LEDs e Relé ---
-#define BUZZER_PIN A0  // Buzzer Ativo (Pino A0)
-#define RELE_PIN A1    // Pino de controle do Relé 5V (Ventoinha) - Active HIGH
+// --- Configuração do Hardware ---
+#define BUZZER_PIN A0
+#define RELE_PIN A1    // Active HIGH (HIGH liga)
+#define BOTAO_DESLIGA_PIN A2
 
-// --- Botão de Desligamento ---
-#define BOTAO_DESLIGA_PIN A2 // Pino para o botão de desligar
+#define RGB_R_PIN 6
+#define RGB_G_PIN 5
+#define RGB_B_PIN 2
 
-// --- Pinos do LED RGB (HW-479 Cátodo Comum) ---
-#define RGB_R_PIN 6    // Pino VERMELHO do LED RGB
-#define RGB_G_PIN 5    // Pino VERDE do LED RGB
-#define RGB_B_PIN 2    // Pino AZUL do LED RGB (para estado Ocioso)
+Servo microservo9g; // Pino 3
 
-// --- Configuração do Servo ---
-Servo microservo9g; // Conectado ao Pino 3
-
-// --- Configuração do RTC DS1302 ---
-#define RTC_RST_PIN 4  // Digital 4 (CE/Reset)
-#define RTC_IO_PIN 7   // Digital 7 (I/O/Data)
-#define RTC_SCLK_PIN 8 // Digital 8 (SCLK/Clock)
-
+// --- RTC ---
+#define RTC_RST_PIN 4
+#define RTC_IO_PIN 7
+#define RTC_SCLK_PIN 8
 ThreeWire myWire(RTC_IO_PIN, RTC_SCLK_PIN, RTC_RST_PIN);
 RtcDS1302<ThreeWire> Rtc(myWire);
 
-// --- Configuração do LCD I2C ---
-LiquidCrystal_I2C lcd(0x27, 16, 2); // Endereço 0x27, 16x2
+// --- LCD ---
+LiquidCrystal_I2C lcd(0x27, 16, 2);
 
-// --- Variáveis de Controle do Letreiro Ocioso ---
+// --- Variáveis de Controle ---
 unsigned long lastDisplayChange = 0;
 const long displayInterval = 3000;
 bool showScreenA = true;
+bool isSistemaAtivo = false;
 
-// --- Variável de Estado do Sistema ---
-bool isSistemaAtivo = false; // Controla se a energia (Relé) está LIGADA ou DESLIGADA
+// --- DADOS DE CONSUMO E TARIFA ---
+unsigned long inicioUso = 0; // Marca o início da sessão
 
-// --- FUNÇÕES DE FEEDBACK ---
+// 1 Ar Condicionado: 0,0885 kWh por hora
+const float POTENCIA_AC_KW = 0.0885; 
+
+// 6 Lâmpadas LED 18W: 0.108 kW
+const float POTENCIA_LAMPADAS_KW = 0.108; 
+
+// Potência Total da Sala
+const float POTENCIA_TOTAL_KW = POTENCIA_AC_KW + POTENCIA_LAMPADAS_KW; 
+
+// Tarifa de Energia (R$/kWh)
+const float TARIFA_KWH = 0.682;
+
+// --- FUNÇÕES AUXILIARES ---
 
 void beepLiberado() {
-  digitalWrite(BUZZER_PIN, HIGH);
-  delay(100);
-  digitalWrite(BUZZER_PIN, LOW);
+  digitalWrite(BUZZER_PIN, HIGH); delay(100); digitalWrite(BUZZER_PIN, LOW);
 }
 
 void beepNegado() {
-  digitalWrite(BUZZER_PIN, HIGH);
-  delay(100);
-  digitalWrite(BUZZER_PIN, LOW);
+  digitalWrite(BUZZER_PIN, HIGH); delay(100); digitalWrite(BUZZER_PIN, LOW);
   delay(50);
-  digitalWrite(BUZZER_PIN, HIGH);
-  delay(100);
-  digitalWrite(BUZZER_PIN, LOW);
+  digitalWrite(BUZZER_PIN, HIGH); delay(100); digitalWrite(BUZZER_PIN, LOW);
 }
 
 void setRgbColor(bool r, bool g, bool b) {
-  digitalWrite(RGB_R_PIN, r);
-  digitalWrite(RGB_G_PIN, g);
-  digitalWrite(RGB_B_PIN, b);
+  digitalWrite(RGB_R_PIN, r); digitalWrite(RGB_G_PIN, g); digitalWrite(RGB_B_PIN, b);
 }
 
-// --- FUNÇÕES DE DISPLAY ---
+// --- TELAS DO LCD ---
 
-// Função para exibir a data/hora do ACESSO LIBERADO
-void displayTime(RtcDateTime t) {
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  if (t.Day() < 10) lcd.print("0");
-  lcd.print(t.Day());
-  lcd.print("/");
-  if (t.Month() < 10) lcd.print("0");
-  lcd.print(t.Month());
-  lcd.print("/");
-  lcd.print(t.Year());
-  lcd.setCursor(0, 1);
-  if (t.Hour() < 10) lcd.print("0");
-  lcd.print(t.Hour());
-  lcd.print(":");
-  if (t.Minute() < 10) lcd.print("0");
-  lcd.print(t.Minute());
-  lcd.print(":");
-  if (t.Second() < 10) lcd.print("0");
-  lcd.print(t.Second());
-  lcd.print(" LIBERADO");
-}
-
-// --- FUNÇÕES DO LETREIRO OCIOSO ---
-
-// Função para a Tela A (Projeto)
 void displayScreenA() {
   lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("PROJ. INTEGRADOR");
-  lcd.setCursor(0, 1);
-  lcd.print("APROXIMAR CARTAO");
+  lcd.setCursor(0, 0); lcd.print("PROJ. INTEGRADOR");
+  lcd.setCursor(0, 1); lcd.print("APROXIMAR CARTAO");
 }
 
-// Função para a Tela B (Relógio)
 void displayScreenB(RtcDateTime t) {
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Data: ");
-  if (t.Day() < 10) lcd.print("0");
-  lcd.print(t.Day());
-  lcd.print("/");
-  if (t.Month() < 10) lcd.print("0");
-  lcd.print(t.Month());
-  lcd.print("/");
+  if (t.Day() < 10) lcd.print("0"); lcd.print(t.Day()); lcd.print("/");
+  if (t.Month() < 10) lcd.print("0"); lcd.print(t.Month()); lcd.print("/");
   lcd.print(t.Year());
   lcd.setCursor(0, 1);
   lcd.print("Hora: ");
-  if (t.Hour() < 10) lcd.print("0");
-  lcd.print(t.Hour());
-  lcd.print(":");
-  if (t.Minute() < 10) lcd.print("0");
-  lcd.print(t.Minute());
-  lcd.print(":");
-  if (t.Second() < 10) lcd.print("0");
-  lcd.print(t.Second());
+  if (t.Hour() < 10) lcd.print("0"); lcd.print(t.Hour()); lcd.print(":");
+  if (t.Minute() < 10) lcd.print("0"); lcd.print(t.Minute()); lcd.print(":");
+  if (t.Second() < 10) lcd.print("0"); lcd.print(t.Second());
 }
 
-// Função para a Tela de Sistema Ativo
 void displaySistemaAtivo() {
   lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("SALA EM USO"); // REQUISITO: Nova Mensagem
-  lcd.setCursor(0, 1);
-  lcd.print("Energia Ligada");
+  lcd.setCursor(0, 0); lcd.print("SALA OCUPADA");
+  lcd.setCursor(0, 1); lcd.print("Monitorando...");
 }
 
-// Função que roda o Letreiro (separada do loop)
+// --- Tela de Relatório de Sessão ---
+void displayRelatorioConsumo(unsigned long duracaoMs) {
+  float segundos = duracaoMs / 1000.0;
+  float horas = segundos / 3600.0;
+  
+  float consumoKWh = POTENCIA_TOTAL_KW * horas;
+  float custoReais = consumoKWh * TARIFA_KWH;
+
+  // Tela 1: Tempo
+  lcd.clear();
+  lcd.setCursor(0, 0); lcd.print("Sessao Encerrada");
+  lcd.setCursor(0, 1); 
+  lcd.print("Tempo: "); lcd.print((int)segundos); lcd.print(" seg");
+  delay(3000);
+
+  // Tela 2: Consumo
+  lcd.clear();
+  lcd.setCursor(0, 0); lcd.print("Consumo Energia:");
+  lcd.setCursor(0, 1); 
+  lcd.print(consumoKWh, 5); lcd.print(" kWh"); 
+  delay(3000); 
+  
+  // Tela 3: Gasto
+  lcd.clear();
+  lcd.setCursor(0, 0); lcd.print("Gasto da Sessao:");
+  lcd.setCursor(0, 1); 
+  lcd.print("R$ "); lcd.print(custoReais, 4); 
+  delay(4000); 
+}
+
 void atualizarLetreiroOcioso() {
   unsigned long currentMillis = millis();
-  if (currentMillis - lastDisplayChange >= displayInterval)
-  {
+  if (currentMillis - lastDisplayChange >= displayInterval) {
     lastDisplayChange = currentMillis;
     if (showScreenA) {
       RtcDateTime now = Rtc.GetDateTime();
@@ -169,168 +157,118 @@ void atualizarLetreiroOcioso() {
   }
 }
 
-// Função que processa o cartão (separada do loop)
+// --- LÓGICA PRINCIPAL ---
+
 void processarCartao() {
   RtcDateTime t = Rtc.GetDateTime();
-
+  
   String conteudo = "";
-  for (byte i = 0; i < mfrc522.uid.size; i++)
-  {
+  for (byte i = 0; i < mfrc522.uid.size; i++) {
     conteudo.concat(String(mfrc522.uid.uidByte[i] < 0x10 ? " 0" : " "));
     conteudo.concat(String(mfrc522.uid.uidByte[i], HEX));
   }
   conteudo.toUpperCase();
   String uid = conteudo.substring(1);
-  Serial.print("UID lido: ");
-  Serial.println(uid);
 
-  // --- Verificacao de Acesso Liberado ---
-  // UIDs Permitidos: 91 42 91 04, 77 E7 7B 05
-  if (uid == "91 42 91 04" || uid == "77 E7 7B 05")
-  {
+  if (uid == "91 42 91 04" || uid == "77 E7 7B 05") { // UIDs Válidos
     beepLiberado();
-    displayTime(t);
-    Serial.print("ACESSO LIBERADO: ");
-    Serial.print(t.Year()); Serial.print("/"); Serial.print(t.Month()); Serial.print("/"); Serial.print(t.Day());
-    Serial.print(" ");
-    Serial.print(t.Hour()); Serial.print(":"); Serial.print(t.Minute()); Serial.print(":"); Serial.println(t.Second());
-
-    // --- Ação de Acesso ---
-    microservo9g.write(0);
-    setRgbColor(LOW, HIGH, LOW);
     
-    // LÓGICA ACTIVE HIGH: HIGH = LIGA
-    digitalWrite(RELE_PIN, HIGH);
+    // Inicia Contagem de Tempo
+    inicioUso = millis();
+    
+    // Ação Hardware (Abre a porta IMEDIATAMENTE)
+    microservo9g.write(0);  
+    digitalWrite(RELE_PIN, HIGH); 
+    setRgbColor(LOW, HIGH, LOW); // Verde
     isSistemaAtivo = true;
-    Serial.println("Rele ACIONADO (Ventoinha Ligada)");
-
-    delay(3000); // Tempo para a pessoa passar
-
-    // --- Fecha a cancela, mas MANTÉM A ENERGIA ---
-    microservo9g.write(90);
     
-    // Atualiza o display para "Sala Ocupada"
-    displaySistemaAtivo();
-  }
-
-  // --- Verificacao de Acesso Negado ---
-  else
-  {
-    beepNegado();
-    setRgbColor(LOW, LOW, LOW);
-
+    // --- SEQUÊNCIA DE TELAS DE ENTRADA ---
+    
+    // 1. Acesso Liberado
     lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("ACESSO NEGADO!");
+    lcd.setCursor(0, 0); lcd.print("ACESSO LIBERADO!");
+    delay(2000); // 2 segundos para ler
     
-    bool isKnownDenied = (uid == "E1 1B 09 05");
-    if (isKnownDenied) {
-      Serial.println("Cartao Negado Conhecido.");
-      lcd.setCursor(0, 1);
-      lcd.print("Cartao Bloqueado");
-    } else {
-      Serial.println("TAG Desconhecida.");
-      lcd.setCursor(0, 1);
-      lcd.print("Cartao Desconhecido");
-    }
+    // 2. Data e Hora (Padrão Ocioso)
+    // Reutilizamos a função displayScreenB para manter o mesmo padrão exato
+    displayScreenB(t); 
+    delay(2500); // 2.5 segundos para ler a data/hora
 
-    for (int i = 0; i < 4 ; i++)
-    {
-      setRgbColor(HIGH, LOW, LOW);
-      delay(200);
-      setRgbColor(LOW, LOW, LOW);
-      delay(200);
-    }
-    delay(1000);
+    // 3. Bem-Vindo / Iniciando
+    lcd.clear();
+    lcd.setCursor(0, 0); lcd.print("BEM-VINDO!");
+    lcd.setCursor(0, 1); lcd.print("Iniciando Sala");
+    delay(2000); 
 
-    // Retorna ao estado anterior (Ativo ou Ocioso)
-    if (isSistemaAtivo) {
-      setRgbColor(LOW, HIGH, LOW);
-      displaySistemaAtivo();
+    // Fecha a cancela
+    microservo9g.write(90); 
+    displaySistemaAtivo();
+    
+  } else {
+    beepNegado();
+    setRgbColor(HIGH, LOW, LOW); // Vermelho
+    lcd.clear(); lcd.print("ACESSO NEGADO!");
+    delay(2000);
+    if (!isSistemaAtivo) {
+       setRgbColor(LOW, LOW, HIGH); // Azul
+       displayScreenA();
     } else {
-      setRgbColor(LOW, LOW, HIGH);
-      displayScreenA();
-      lastDisplayChange = millis();
-      showScreenA = true;
+       setRgbColor(LOW, HIGH, LOW); // Volta p/ Verde se já estava ativo
+       displaySistemaAtivo();
     }
   }
-
   mfrc522.PICC_HaltA();
   mfrc522.PCD_StopCrypto1();
 }
 
-// Função que verifica o botão de desligar
 void verificarBotaoDesligamento() {
   if (digitalRead(BOTAO_DESLIGA_PIN) == LOW) {
-    Serial.println("Botão de desligamento pressionado!");
+    // Calcula duração da sessão
+    unsigned long fimUso = millis();
+    unsigned long duracao = fimUso - inicioUso;
     
-    // Ação de Desligamento
-    digitalWrite(RELE_PIN, LOW); // LÓGICA ACTIVE HIGH: LOW = DESLIGA
+    // Desliga Cargas
+    digitalWrite(RELE_PIN, LOW);
     isSistemaAtivo = false;
-    setRgbColor(LOW, LOW, HIGH);
-
-    Serial.println("Rele DESLIGADO (Ventoinha Desligada)");
-
-    // Prepara o "letreiro" para recomeçar
+    setRgbColor(LOW, LOW, HIGH); // Azul
+    
+    // MOSTRA O RELATÓRIO DE ECONOMIA
+    displayRelatorioConsumo(duracao);
+    
+    // Volta ao Ocioso
     displayScreenA();
-    showScreenA = true;
     lastDisplayChange = millis();
-
-    delay(200); // Debounce
+    delay(500); 
   }
 }
 
-
-void setup()
-{
-  lcd.init();
-  lcd.backlight();
-  displayScreenA();
-  lastDisplayChange = millis();
-
+void setup() {
+  lcd.init(); lcd.backlight();
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(RELE_PIN, OUTPUT);
-  pinMode(RGB_R_PIN, OUTPUT);
-  pinMode(RGB_G_PIN, OUTPUT);
-  pinMode(RGB_B_PIN, OUTPUT);
+  pinMode(RGB_R_PIN, OUTPUT); pinMode(RGB_G_PIN, OUTPUT); pinMode(RGB_B_PIN, OUTPUT);
   pinMode(BOTAO_DESLIGA_PIN, INPUT_PULLUP);
-
-  // LÓGICA ACTIVE HIGH: Inicia o relé em LOW (Desligado)
+  
+  // Estado inicial
   digitalWrite(RELE_PIN, LOW);
-  isSistemaAtivo = false;
-
-  setRgbColor(LOW, LOW, HIGH);
-
+  setRgbColor(LOW, LOW, HIGH); // Azul inicial
+  
+  microservo9g.attach(3); microservo9g.write(90);
+  
   Rtc.Begin();
-  RtcDateTime compiled = RtcDateTime(__DATE__, __TIME__);
-  if (!Rtc.IsDateTimeValid())
-  {
-    Serial.println("ERRO: RTC não está funcionando! Ajustando data/hora.");
-    Rtc.SetDateTime(compiled);
-  }
-  // Rtc.SetDateTime(RtcDateTime(2025, 11, 7, 11, 45, 0));
-
-  microservo9g.attach(3);
-  microservo9g.write(90);
-
-  Serial.begin(9600);
-  SPI.begin();
-  mfrc522.PCD_Init();
-  Serial.println("Sistema Pronto e Aguardando Cartão...");
+  SPI.begin(); mfrc522.PCD_Init();
+  
+  displayScreenA();
 }
 
-void loop()
-{
+void loop() {
   if (isSistemaAtivo) {
     verificarBotaoDesligamento();
   }
 
-  if (mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial())
-  {
+  if (mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial()) {
     processarCartao();
-  }
-  else if (!isSistemaAtivo)
-  {
+  } else if (!isSistemaAtivo) {
     atualizarLetreiroOcioso();
   }
 }
